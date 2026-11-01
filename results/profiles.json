@@ -1,0 +1,217 @@
+{
+ "raw": {
+  "device": [
+   {
+    "reps": 1,
+    "tokens": 1584,
+    "seconds": 0.7101
+   },
+   {
+    "reps": 1,
+    "tokens": 1584,
+    "seconds": 0.708
+   },
+   {
+    "reps": 1,
+    "tokens": 1584,
+    "seconds": 0.7082
+   },
+   {
+    "reps": 3,
+    "tokens": 2512,
+    "seconds": 1.13
+   },
+   {
+    "reps": 3,
+    "tokens": 2512,
+    "seconds": 1.0808
+   },
+   {
+    "reps": 3,
+    "tokens": 2512,
+    "seconds": 1.081
+   },
+   {
+    "reps": 6,
+    "tokens": 3904,
+    "seconds": 1.8423
+   },
+   {
+    "reps": 6,
+    "tokens": 3904,
+    "seconds": 1.7766
+   },
+   {
+    "reps": 6,
+    "tokens": 3904,
+    "seconds": 1.7752
+   },
+   {
+    "reps": 12,
+    "tokens": 6688,
+    "seconds": 3.3344
+   },
+   {
+    "reps": 12,
+    "tokens": 6688,
+    "seconds": 2.8163
+   },
+   {
+    "reps": 12,
+    "tokens": 6688,
+    "seconds": 2.814
+   }
+  ],
+  "edge": [
+   {
+    "reps": 1,
+    "tokens": 3168,
+    "seconds": 0.6447
+   },
+   {
+    "reps": 1,
+    "tokens": 3168,
+    "seconds": 0.6644
+   },
+   {
+    "reps": 1,
+    "tokens": 3168,
+    "seconds": 0.6495
+   },
+   {
+    "reps": 3,
+    "tokens": 5024,
+    "seconds": 1.2299
+   },
+   {
+    "reps": 3,
+    "tokens": 5024,
+    "seconds": 1.2349
+   },
+   {
+    "reps": 3,
+    "tokens": 5024,
+    "seconds": 1.2368
+   },
+   {
+    "reps": 6,
+    "tokens": 7808,
+    "seconds": 2.0877
+   },
+   {
+    "reps": 6,
+    "tokens": 7808,
+    "seconds": 2.0955
+   },
+   {
+    "reps": 6,
+    "tokens": 7808,
+    "seconds": 2.0919
+   },
+   {
+    "reps": 12,
+    "tokens": 13376,
+    "seconds": 3.8239
+   },
+   {
+    "reps": 12,
+    "tokens": 13376,
+    "seconds": 3.8596
+   },
+   {
+    "reps": 12,
+    "tokens": 13376,
+    "seconds": 3.8696
+   }
+  ],
+  "cloud": [
+   {
+    "reps": 1,
+    "tokens": 104,
+    "seconds": 0.5498
+   },
+   {
+    "reps": 1,
+    "tokens": 104,
+    "seconds": 0.84
+   },
+   {
+    "reps": 1,
+    "tokens": 104,
+    "seconds": 0.4803
+   },
+   {
+    "reps": 3,
+    "tokens": 162,
+    "seconds": 0.5091
+   },
+   {
+    "reps": 3,
+    "tokens": 162,
+    "seconds": 0.5098
+   },
+   {
+    "reps": 3,
+    "tokens": 162,
+    "seconds": 0.5407
+   },
+   {
+    "reps": 6,
+    "tokens": 249,
+    "seconds": 0.5192
+   },
+   {
+    "reps": 6,
+    "tokens": 249,
+    "seconds": 0.5498
+   },
+   {
+    "reps": 6,
+    "tokens": 249,
+    "seconds": 0.4999
+   },
+   {
+    "reps": 12,
+    "tokens": 423,
+    "seconds": 0.569
+   },
+   {
+    "reps": 12,
+    "tokens": 423,
+    "seconds": 0.5799
+   },
+   {
+    "reps": 12,
+    "tokens": 423,
+    "seconds": 0.5205
+   }
+  ]
+ },
+ "device_per_tuple_s": 0.1290190212407323,
+ "device_fit": {
+  "fixed_s": 0.06959529367452298,
+  "per_token_s": 0.0004155643846202488,
+  "batch": 16
+ },
+ "edge": {
+  "fixed_s": 0.0,
+  "fixed_measured_s": 0.0,
+  "per_token_s": 0.0003142681620909302,
+  "concurrency": 1,
+  "batchable": true,
+  "rtt_s": 0.002,
+  "bw_mbps": 90.0
+ },
+ "cloud": {
+  "fixed_s": 0.4324316889756185,
+  "fixed_measured_s": 0.5124316889756185,
+  "per_token_s": 0.00010452316640801802,
+  "concurrency": 16,
+  "batchable": false,
+  "rtt_s": 0.08,
+  "bw_mbps": 23.7,
+  "price_in": 0.8,
+  "price_out": 6.4,
+  "tpm": 19000.0
+ }
+}

@@ -1,0 +1,70 @@
+[
+ {
+  "type": "keyword_any",
+  "field": "text",
+  "keywords": [
+   "delay",
+   "wait",
+   "slow",
+   "late",
+   "long",
+   "time",
+   "reserv",
+   "appointment",
+   "ship",
+   "delivery",
+   "table",
+   "food",
+   "service"
+  ]
+ },
+ {
+  "type": "keyword_any",
+  "field": "text",
+  "keywords": [
+   "complain",
+   "complaint",
+   "disappoint",
+   "frustrat",
+   "annoy",
+   "upset",
+   "angr",
+   "unhappy",
+   "dissatisfy",
+   "problem",
+   "issue",
+   "concern",
+   "complained",
+   "complaining",
+   "complains"
+  ]
+ },
+ {
+  "type": "or",
+  "args": [
+   {
+    "type": "keyword_any",
+    "field": "text",
+    "keywords": [
+     "unacceptably",
+     "unreasonably",
+     "excessively",
+     "extremely",
+     "very",
+     "too",
+     "really",
+     "incredibly",
+     "ridiculously",
+     "awfully",
+     "terribly"
+    ]
+   },
+   {
+    "type": "numeric",
+    "field": "stars",
+    "op": "<=",
+    "value": 3
+   }
+  ]
+ }
+]

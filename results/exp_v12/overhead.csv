@@ -1,0 +1,6 @@
+component,n_cal,configs,ms
+calibration (per stratum),500.0,56463.0,106.46600899963232
+calibration (per stratum),1500.0,56463.0,201.3271129999339
+calibration (per stratum),4000.0,56463.0,427.3626319991308
+privacy shield check,,,0.00011269795999396592
+router decision,,,0.02086903000054008

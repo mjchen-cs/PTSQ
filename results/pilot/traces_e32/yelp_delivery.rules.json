@@ -1,0 +1,66 @@
+[
+ {
+  "type": "keyword_any",
+  "field": "text",
+  "keywords": [
+   "delivery",
+   "shipping",
+   "wait",
+   "time",
+   "late",
+   "delay",
+   "slow",
+   "long",
+   "took",
+   "takes",
+   "waited",
+   "waiting",
+   "arrive",
+   "arrived",
+   "arrival",
+   "receive",
+   "received",
+   "receiving",
+   "sent",
+   "send",
+   "dispatch",
+   "dispatched"
+  ]
+ },
+ {
+  "type": "regex",
+  "field": "text",
+  "pattern": "(?i)\\b(delivery|shipping|wait|time)\\b.*\\b(slow|late|long|delay|problem|issue|complain)\\b"
+ },
+ {
+  "type": "keyword_any",
+  "field": "text",
+  "keywords": [
+   "not received",
+   "haven't received",
+   "didn't receive",
+   "still waiting",
+   "still haven't",
+   "haven't got",
+   "didn't get",
+   "no update",
+   "no tracking",
+   "stuck in",
+   "lost in",
+   "where is",
+   "where's",
+   "when will",
+   "when can",
+   "when is",
+   "how long",
+   "how much",
+   "how soon"
+  ]
+ },
+ {
+  "type": "numeric",
+  "field": "stars",
+  "op": "<=",
+  "value": 3
+ }
+]

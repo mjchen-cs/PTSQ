@@ -1,0 +1,14 @@
+# Dry-run configuration: every tier is a MockBackend. Produces SYNTHETIC numbers that only
+# test the code paths. Never report them.
+cache: null
+profiles:
+  device_per_tuple_s: 0.05
+  edge: {rtt_s: 0.002, bw_mbps: 100, fixed_s: 0.08, per_token_s: 0.00002, concurrency: 2, batchable: true}
+  cloud: {rtt_s: 0.04, bw_mbps: 20, fixed_s: 0.4, per_token_s: 0.0003, concurrency: 16, batchable: false, price_in: 4.0, price_out: 12.0}
+guarantee: {gamma_r: 0.9, gamma_p: 0.9, delta: 0.05, n_cal: 600, max_rule_subset: 2}
+weights: {latency: 1.0, money: 10.0, bytes: 0.0}
+tiers:
+  device: {kind: mock, name: device, quality: 1.2, base_latency_s: 0.0, per_token_s: 0.0}
+  edge:   {kind: mock, name: edge, quality: 2.5, flip: 0.02, base_latency_s: 0.0, per_token_s: 0.0}
+  cloud:  {kind: mock, name: cloud, quality: null, base_latency_s: 0.0, per_token_s: 0.0, price_in: 4.0, price_out: 12.0}
+compile_tier: cloud
