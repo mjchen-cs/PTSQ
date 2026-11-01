@@ -1,0 +1,118 @@
+# Live runs on the Jetson (run_live.py): smaller device batches (8 GB shared memory) and a
+# 15 s cloud timeout (re-send requests stuck in the provider's latency tail).
+# PTSQ configuration for the testbed: Jetson Orin Nano Super (device),
+# RTX 5090 workstation (private edge server), Zhipu / SiliconFlow APIs (public cloud).
+#
+# !!! Before running: check model names, endpoints and prices on the providers' official
+# !!! pages - they change. API keys are read from environment variables, never from files.
+
+cache: results/cache.sqlite          # every LLM response is cached here (reproducibility)
+profiles: results/profiles.json      # written by scripts/profile_tiers.py
+
+privacy:
+  allowed:                           # tiers each privacy level may reach
+    HIGH: [DEVICE]
+    MEDIUM: [DEVICE, EDGE]
+    LOW: [DEVICE, EDGE, CLOUD]
+  pii_levels: {cn_id: HIGH, card: HIGH, cn_phone: MEDIUM, phone: MEDIUM, email: MEDIUM, ipv4: MEDIUM}
+  field_levels: {}                   # e.g. {diagnosis: HIGH}
+  redact_promote: false
+
+guarantee:
+  gamma_r: 0.8                       # recall target (w.r.t. the permitted reference); main setting
+  gamma_p: 0.8                       # precision target (null to disable); sweep in sensitivity suite
+  delta: 0.05                        # failure probability
+  n_cal: 1000                        # minimum calibration sample size per stratum
+  min_pos: 800                       # adaptive n (used only if miss_budget is null)
+  miss_budget: 40                    # adaptive n: k+ = miss_budget / (1 - gamma_r) reference positives (200 at 0.8)
+  cert: split                        # split: propose on 50% of S, fixed-sequence test on the rest (union: old)
+  test: cond                         # split: test recall/precision directly on the sampled positives/answers (2 bounds at delta/2)
+  delta_certified_only: true         # split delta only among strata that need certification (not the device-only High stratum)
+  risk: true                         # learned edge-disagreement risk (needs cert: split and results/feat/<qid>_text.csv.gz)
+  prefilter: true                    # learned text pre-filter as candidate pruning rules (needs cert: split and features)
+  n_pilot: 300                       # independent pilot draws used only to choose n
+  n_cal_max: 8000
+  max_rule_subset: 2
+
+weights:                             # cost = latency[s] + money[CNY]*w_m + uplink[MB]*w_b
+  latency: 1.0
+  money: 10.0
+  bytes: 0.0
+
+tiers:
+  device:                            # runs ON the Jetson (HF + optional federated LoRA)
+    kind: hf
+    name: device
+    model_path: Qwen/Qwen2.5-1.5B-Instruct
+    lora_path: null
+    device: cuda
+    dtype: float16
+    batch_size: 16
+    max_batch_tokens: 2048           # padded tokens per batch (Jetson: CPU+GPU share 8 GB)
+  edge:                              # vLLM OpenAI server on the RTX 5090
+    kind: openai
+    name: edge
+    base_url: http://192.168.0.36:8000/v1   # RTX 5090 (WSL2, mirrored networking)
+    model: Qwen/Qwen2.5-32B-Instruct-AWQ   # alt: Qwen/Qwen2.5-14B-Instruct (FP8); vLLM must serve the same
+    score_mode: logprobs
+    max_concurrency: 32               # let vLLM batch the requests (continuous batching)
+  cloud:                             # SiliconFlow (OpenAI-compatible)
+    kind: openai
+    name: cloud-q35
+    timeout_s: 15                    # live run: re-send requests stuck >15 s
+    base_url: https://api.siliconflow.cn/v1
+    model: Qwen/Qwen3.5-122B-A10B    # hybrid reasoning model: thinking switched off below
+    api_key_env: SILICONFLOW_API_KEY
+    score_mode: label                # reference tier only needs labels
+    max_concurrency: 16
+    extra_body: {enable_thinking: false}
+    price_in: 0.8                    # CNY per 1M input tokens (<128k), SiliconFlow online, checked 2026-10
+    price_out: 6.4                   # CNY per 1M output tokens, SiliconFlow online, checked 2026-10
+    tpm_limit: 19000                 # account level L0: 20000 TPM / 1000 RPM (keep a margin)
+    rpm_limit: 950
+    batch:                           # offline oracle labels via the batch API (scripts/batch_label.py)
+      max_lines: 5000                # requests per batch file
+      completion_window: 24h
+      extra: {}                      # provider-specific fields for POST /batches, if any
+    max_retries: 20                  # ~15 min of back-off before giving up (long unattended runs)
+
+# Alternative cloud provider (swap into tiers.cloud to run the cross-provider experiment)
+cloud_alternatives:
+  deepseek:                          # second reference for the reference-robustness study (scripts/ref_alt.py)
+    kind: openai
+    name: cloud-alt-deepseek
+    base_url: https://api.siliconflow.cn/v1
+    model: deepseek-ai/DeepSeek-V4-Pro
+    api_key_env: SILICONFLOW_API_KEY
+    score_mode: label
+    max_concurrency: 32
+    extra_body: {enable_thinking: false}   # remove if the provider rejects it for this model
+    price_in: 12.0                   # CNY per 1M tokens, ONLINE price (bill 2026-10-30); batch: 6 / 12
+    price_out: 24.0                  # online output price: CHECK (only 1-3 output tokens per call)
+    tpm_limit: 1900000               # L0 for this model: 2,000,000 TPM / 500 RPM
+    rpm_limit: 475
+    max_retries: 20
+  qwen25_72b:                        # pilot reference (no batch API; 95.4% agreement with Qwen3.5-122B)
+    kind: openai
+    name: cloud-siliconflow
+    base_url: https://api.siliconflow.cn/v1
+    model: Qwen/Qwen2.5-72B-Instruct
+    api_key_env: SILICONFLOW_API_KEY
+    score_mode: label
+    max_concurrency: 16
+    price_in: 4.13
+    price_out: 4.13
+    tpm_limit: 19000
+    rpm_limit: 950
+  zhipu:
+    kind: openai
+    name: cloud-zhipu
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    model: glm-4-plus                # check the current model list
+    api_key_env: ZHIPUAI_API_KEY
+    score_mode: label
+    max_concurrency: 16
+    price_in: 0.0                    # PLACEHOLDER
+    price_out: 0.0                   # PLACEHOLDER
+
+compile_tier: cloud                  # tier that proposes symbolic rules (sees query text + schema only)
