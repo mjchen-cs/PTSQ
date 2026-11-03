@@ -1,4 +1,4 @@
-# PTSQ — supplemental material
+# PTSQ 
 
 Code, traces and experiment logs for *Privacy-Tiered Semantic Query Processing across Device,
 Edge, and Cloud LLMs with Accuracy Guarantees* (ICDE 2027 submission).
