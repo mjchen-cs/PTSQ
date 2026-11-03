@@ -1,4 +1,4 @@
-# PTSQ 
+# PTSQ — supplemental material
 
 Code, traces and experiment logs for *Privacy-Tiered Semantic Query Processing across Device,
 Edge, and Cloud LLMs with Accuracy Guarantees* (ICDE 2027 submission).
@@ -11,25 +11,25 @@ Every number and figure in the paper is produced by replaying the recorded trace
 ```bash
 python3 -m venv .venv && source .venv/bin/activate      # Python >= 3.10
 pip install -e ".[dev]"
-pytest -q                                                 # 25 tests, incl. empirical guarantee checks
+pytest -q                                                 # 28 tests, incl. empirical guarantee checks
 ```
 
 ## 2. Reproduce
 
 | Script | What it does | Time (10 cores) |
 |---|---|---|
-| `run_small.sh` | unit tests + main comparison (2 seeds) + figures | ~15 min |
-| `run_all.sh` | all suites of Section VIII (main, ablation, guarantee with 200 seeds, sensitivity, wrong rules, device model, overheads) + figures and tables | ~8 h |
+| `run_small.sh` | unit tests + main comparison (2 seeds) + figures | ~20 min |
+| `run_all.sh` | all suites of Section VIII (main, ablation, guarantee with 200 seeds, sensitivity, wrong rules, device model, overheads) + figures and tables | ~18 h |
 
-Outputs go to `results/repro/` and `paper_out/`. The logs we used for the paper are in
-`results/exp_v12/` (one row per query, method and seed), so the figures can also be regenerated
+Outputs go to `results/repro/` and `paper_out/`. Each worker process needs about 1.5–2 GB of memory; set `JOBS` (e.g. `JOBS=10 ./run_all.sh`) so that `JOBS` × 2 GB fits into RAM. The logs we used for the paper are in
+`results/exp_v13/` (one row per query, method and seed), so the figures can also be regenerated
 without re-running anything:
 
 ```bash
-python scripts/make_figures.py --exp results/exp_v12 --paper paper_out --traces results/traces_main \
+python scripts/make_figures.py --exp results/exp_v13 --paper paper_out --traces results/traces_main \
   --live results/live_v2.csv                                 # Figs. 8-11, tables
 python scripts/make_design_figs.py --pilot results/pilot/traces_q35 --vague14 results/pilot/traces_vague14 \
-  --vague32 results/pilot/traces_e32 --profiles results/profiles.json --main results/exp_v12/main.csv \
+  --vague32 results/pilot/traces_e32 --profiles results/profiles.json --main results/exp_v13/main.csv \
   --out paper_out/figs                                       # Figs. 1, 4, 5, 7 (pilot study)
 ```
 
@@ -37,20 +37,20 @@ python scripts/make_design_figs.py --pilot results/pilot/traces_q35 --vague14 re
 
 | Path | Content |
 |---|---|
-| `ptsq/cascade.py` | certified calibration: configuration grid, union bound (Thm. 1), propose-and-test with the direct recall/precision test (Thm. 2, Eq. 3), learned risk and prefilter |
+| `ptsq/cascade.py` | certified calibration: configuration grid, union bound (Thm. 1), propose-and-test with the direct recall/precision test (Thm. 2, Eq. 3), learned risk and prefilter, single-threshold plans (`threshold_certify`) |
 | `ptsq/privacy.py` | PII detectors, privacy policy, privacy shield (Thm. 4) |
 | `ptsq/simulator.py` | discrete-event simulator and monotone escalations (Thm. 3) |
-| `ptsq/replay.py` | trace replay of PTSQ and all baselines (Static-Ref, Conf-Cascade, Cert-2Tier, SUPG-JT, BARGAIN-JT) |
+| `ptsq/replay.py` | trace replay of PTSQ and all baselines (Static-Ref, Conf-Cascade, Cert-2Tier, SUPG-JT, BARGAIN-JT); skipping calibration without a bottleneck reference |
 | `ptsq/bargain.py` | our re-implementation of BARGAIN's recall-target procedure (betting tests) |
 | `ptsq/executor.py`, `ptsq/llm/` | live executor and tier back-ends used on the testbed |
 | `scripts/run_experiments.py` | experiment suites; `scripts/make_figures.py` figures and tables |
 | `scripts/collect_trace.py`, `run_live.py`, `profile_tiers.py`, `export_texts.py`, `merge_cache.py`, `batch_label.py` | testbed scripts (Section 5) |
 | `configs/default.yaml` | parameters used in the paper (γ = 0.8, δ = 0.05, B = 40, ...) and the three tiers |
 | `configs/live.yaml` | the same for live runs on the Jetson (smaller device batches, 15 s cloud timeout) |
-| `results/traces_main/` | one trace per query Q1–Q5 (30,000 tuples each): privacy level, device/edge scores, edge and cloud labels, token counts, measured device latency, keep-masks of the candidate rules (`*.rules.json`) |
+| `results/traces_main/` | one trace per query Q1–Q8 (30,000 tuples each): privacy level, device/edge scores, edge and cloud labels, token counts, measured device latency, keep-masks of the candidate rules (`*.rules.json`) |
 | `results/feat/` | review texts used for the TF-IDF features of the learned risk and prefilter |
 | `results/profiles.json` | measured tier profiles of the testbed |
-| `results/exp_v12/` | raw experiment logs behind every figure and table |
+| `results/exp_v13/` | raw experiment logs behind every figure and table (`live_replay.csv`: replay of the live runs under their configuration, Fig. 10(d), from `scripts/replay_live_config.py`) |
 | `results/pilot/` | pilot traces of Section VIII-B (tier agreement, predicate phrasing, rules, calibration example) |
 | `results/live_v2.csv` | end-to-end live runs on the testbed (Fig. 10(d)) |
 | `data/*.csv.gz` | the full candidate tables (Yelp 150k, Amazon 60k reviews: `rid`, `text`, `privacy`) with injected synthetic personal data; `gunzip` them into `data/` to collect new traces |
@@ -193,8 +193,9 @@ and 30% MEDIUM by default):
 python scripts/prepare_data.py --hf Yelp/yelp_review_full --n 30000 --out data/my_table.csv
 ```
 Queries are defined in `configs/queries_example.json` (`qid`, table, natural-language predicate,
-optional SQL filter, `limit`). Q1–Q5 of the paper are `yelp_delay`, `yelp_hygiene`,
-`yelp_staff_praise`, `amazon_defect` and `amazon_gift`.
+optional SQL filter, `limit`). Q1–Q8 of the paper are `yelp_delay`, `yelp_hygiene`,
+`yelp_staff_praise`, `amazon_defect`, `amazon_gift`, `yelp_overpriced`, `amazon_not_as_described`
+and `amazon_return` (`yelp_delivery` is the vague pilot predicate of Section VIII-B).
 
 ### 5.6 Collect evaluation traces
 

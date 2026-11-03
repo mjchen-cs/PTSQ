@@ -348,3 +348,50 @@ def test_bargain_replay_smoke():
     for beta in (0.0, 0.01):
         r = replay(tr, [], MethodConfig("B", kind="bargain", beta=beta), ReplayParams(n_cal=500), Profiles(), seed=1)
         assert r["privacy_violations"] == 0 and r["precision"] == 1.0
+
+
+def test_threshold_certify_valid():
+    """Single-threshold certificate: recall >= gamma w.p. >= 1 - delta (empirical, 400 draws)."""
+    from ptsq.cascade import threshold_certify
+    rng = np.random.default_rng(3)
+    N = 20000
+    y = rng.random(N) < 0.15
+    A = np.clip(np.where(y, rng.beta(5, 2, N), rng.beta(1, 6, N)), 0, 1)
+    uc = {TierId.DEVICE: 0.01, TierId.EDGE: 0.02, TierId.CLOUD: 1.0}
+    chain = [TierId.DEVICE, TierId.EDGE, TierId.CLOUD]
+    fails, n_ok = 0, 0
+    for _ in range(400):
+        S = rng.integers(0, N, 1500)
+        p = threshold_certify(PrivacyLevel.LOW, chain, N, y[S], A[S], 0.9, 0.05, uc)
+        if p is None:
+            continue
+        n_ok += 1
+        rho = p.bounds["rho"]
+        fails += (A[y] >= rho).mean() < 0.9
+    assert n_ok > 300 and fails / n_ok <= 0.05 + 0.03
+
+
+def test_hybrid_replay_smoke():
+    from ptsq.replay import MethodConfig, Profiles, ReplayParams, replay
+    rng = np.random.default_rng(0)
+    n = 3000
+    y = rng.random(n) < 0.2
+    tr = pd.DataFrame({"rid": np.arange(n), "privacy": rng.choice([0, 1, 2], n, p=[0.6, 0.3, 0.1]),
+                       "tokens": 100, "nbytes": 400, "s_D": np.clip(y * 0.6 + rng.random(n) * 0.4, 0, 1),
+                       "s_E": np.clip(y * 0.8 + rng.random(n) * 0.2, 0, 1), "y_E": y, "y_C": y, "t_D": 0.05})
+    r = replay(tr, [], MethodConfig("H"), ReplayParams(n_cal=500, cert="split", test="cond", hybrid=0.2),
+               Profiles(), seed=1)
+    assert r["privacy_violations"] == 0
+
+
+def test_no_bottleneck_skips_calibration():
+    """Without a bottleneck reference (e.g. no cloud rate limit) every stratum goes to its reference."""
+    from ptsq.replay import calibration_cannot_pay_off, unit_costs, Profiles
+    from ptsq.types import PrivacyLevel
+    from ptsq.cascade import StratumPlan
+    chains = {PrivacyLevel.LOW: [TierId.DEVICE, TierId.EDGE, TierId.CLOUD],
+              PrivacyLevel.MEDIUM: [TierId.DEVICE, TierId.EDGE], PrivacyLevel.HIGH: [TierId.DEVICE]}
+    cheap = {TierId.DEVICE: 0.13, TierId.EDGE: 0.07, TierId.CLOUD: 0.035}
+    limited = {TierId.DEVICE: 0.13, TierId.EDGE: 0.07, TierId.CLOUD: 1.0}
+    assert calibration_cannot_pay_off(list(chains), chains, cheap)
+    assert not calibration_cannot_pay_off(list(chains), chains, limited)

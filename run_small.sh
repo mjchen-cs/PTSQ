@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Quick check (~15 min on 10 cores): tests, the main comparison with 2 seeds, figures.
+# Quick check (~20 min with 10 worker processes): tests, the main comparison with 2 seeds, figures.
 set -euo pipefail
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
-JOBS=${JOBS:-$(nproc)}
+JOBS=${JOBS:-$(( $(nproc) < 10 ? $(nproc) : 10 ))}
 pytest -q
 python scripts/run_experiments.py --suite main --seeds 2 --traces results/traces_main \
   --features results/feat --profiles results/profiles.json --jobs "$JOBS" --out results/repro_small

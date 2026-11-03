@@ -124,12 +124,15 @@ def suite_sensitivity(T, P, prof, pol, router, seeds):
     # certification procedure at three targets: x=0 union bound over the grid with k+=800 (first
     # version); x=0.25 propose-and-test with population-fraction ("ratio") bounds and B=80;
     # x=0.5 propose-and-test with the conditional recall/precision test (configured B, delta only
-    # over certified strata); x=0.75 + learned risk; x=1 the configured procedure
-    for g in (0.75, 0.8, 0.9):
+    # over certified strata); x=0.75 + learned risk; x=0.875 + learned prefilter; x=1 the configured
+    # procedure (+ the single-threshold family)
+    for g in (0.75, 0.8, 0.9, 0.95):
         for x, kw in ((0, dict(cert="union", miss_budget=None, min_pos=800, n_cal=1500, risk=False, prefilter=False,
-                               test="ratio", delta_certified_only=False)),
-                      (0.25, dict(risk=False, prefilter=False, test="ratio", miss_budget=80, delta_certified_only=False)),
-                      (0.5, dict(risk=False, prefilter=False)), (0.75, dict(prefilter=False)), (1, {})):
+                               test="ratio", delta_certified_only=False, hybrid=0.0)),
+                      (0.25, dict(risk=False, prefilter=False, test="ratio", miss_budget=80, delta_certified_only=False,
+                                  hybrid=0.0)),
+                      (0.5, dict(risk=False, prefilter=False, hybrid=0.0)), (0.75, dict(prefilter=False, hybrid=0.0)),
+                      (0.875, dict(hybrid=0.0)), (1, {})):
             p = copy.deepcopy(P); p.gamma_r = p.gamma_p = g
             for k_, v_ in kw.items():
                 setattr(p, k_, v_)

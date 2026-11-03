@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from .cascade import StratumInput, StratumPlan, calibrate_stratum, split_delta, choose_n_cal, cascade_can_pay_off, reference_is_bottleneck
+from .cascade import StratumInput, StratumPlan, calibrate_stratum, threshold_certify, split_delta, choose_n_cal, cascade_can_pay_off, reference_is_bottleneck
 from .privacy import PrivacyPolicy, PrivacyShield
 from .simulator import CostWeights, FixedRouter, Item, RoutingSim, TierProfile
 from .types import PrivacyLevel, TierId
@@ -58,6 +58,7 @@ class ReplayParams:
     prefilter: bool = False          # learned text pre-filter as candidate pruning rules (cert="split", features)
     risk: bool = False               # learned disagreement risk for the middle tier (needs cert="split" and features)
     miss_budget: float | None = None  # adaptive n: target (1-gamma_r) * #positives in S (overrides min_pos)
+    hybrid: float = 0.0              # > 0: also certify the single-threshold family on the whole sample at this share of delta_s
     progressive: bool = False        # grow the sample in rounds n_cal, 2 n_cal, ... n_cal_max (delta split over rounds)
     weights: CostWeights = field(default_factory=CostWeights)
 
@@ -140,6 +141,16 @@ def plan_outcome(plan: StratumPlan, chain, s_dev: float, s_mid: float | None, ri
         o = "C_final"
     mid = plan.route_mid(s_mid, risk) if o == "E_mid" else None
     return o, mid, remote_start
+
+
+def calibration_cannot_pay_off(levels, chains, uc) -> bool:
+    """Decision made before any label is bought. If in no stratum the permitted reference costs
+    more per tuple than a cheaper permitted tier (e.g. the cloud has no rate limit), a cascade can
+    save only through symbolic pruning, while its calibration delays the whole query and adds
+    device and edge work; every stratum then goes straight to its reference (as Static-Ref).
+    This decision affects cost only, never the guarantee."""
+    certifiable = [lv for lv in levels if len(chains[lv]) > 1]
+    return bool(certifiable) and not any(reference_is_bottleneck(chains[lv], uc) for lv in certifiable)
 
 
 def select_policy(preview: list[Item], router, prof: "Profiles", w: CostWeights) -> str:
@@ -267,10 +278,20 @@ def replay(tr: pd.DataFrame, rules: list[dict], method: MethodConfig, params: Re
                 break                                     # more labels cannot pay for themselves
         return best, loc_all[:used]
 
+    # 0) can calibration pay off at all? (cost only; the guarantee is unaffected) ---------------
+    skip_all = method.thresholds != "fixed" and calibration_cannot_pay_off(levels, chains, uc)
+
     # 1) calibration per stratum ------------------------------------------------------------
     for lv in levels:
         idx = np.flatnonzero(lv_arr == int(lv))
         chain = chains[lv]
+        if skip_all and len(chain) > 1:
+            plans[lv] = StratumPlan(level=lv, chain=chain, direct=True)
+            continue
+        if skip_all and len(chain) == 1:
+            # the device is the stratum's reference: its answers are exact, nothing to calibrate
+            plans[lv] = StratumPlan(level=lv, chain=chain, lo_d=0.5 - 1e-12, hi_d=0.5)
+            continue
         if method.thresholds == "fixed":
             tau = method.fixed_tau
             plan = StratumPlan(level=lv, chain=chain, lo_d=1 - tau, hi_d=tau, lo_m=1 - tau, hi_m=tau)
@@ -313,9 +334,19 @@ def replay(tr: pd.DataFrame, rules: list[dict], method: MethodConfig, params: Re
                            rule_keep_sample=rule_keep[samp] if rule_keep is not None else None,
                            rule_keep_pop=rule_keep[idx] if rule_keep is not None else None,
                            feat_sample=Xr[samp] if use_x else None, feat_pop=Xr[idx] if use_x else None)
-        plan = calibrate_stratum(inp, params.gamma_r, params.gamma_p, deltas[lv], uc,
+        hyb = params.hybrid > 0 and len(chain) > 1
+        d_c = deltas[lv] * (1 - params.hybrid) if hyb else deltas[lv]
+        plan = calibrate_stratum(inp, params.gamma_r, params.gamma_p, d_c, uc,
                                  max_rule_subset=params.max_rule_subset, cert=params.cert, split=params.split,
                                  bonferroni=params.bonferroni, prefilter=use_pf, test=params.test, eta=params.eta)
+        if hyb:
+            # second certified family on the same sample at w * delta_s (the cascade at (1 - w) delta_s):
+            # both certificates hold simultaneously w.p. >= 1 - delta_s, so the cheaper plan keeps Theorem 1
+            prox = s_mid[samp] if chain[-2] == TierId.EDGE else s_dev[samp]
+            tp = threshold_certify(lv, chain, len(idx), ref_lab[samp], prox, params.gamma_r, deltas[lv] * params.hybrid, uc)
+            cur = plan.est_cost if (plan.feasible or plan.direct) else float(len(idx) * uc[chain[-1]])
+            if tp is not None and tp.est_cost < min(cur, len(idx) * uc[chain[-1]]):
+                plan = tp
         plans[lv] = plan
         if plan.risk_pop is not None:
             risk_all[idx] = plan.risk_pop

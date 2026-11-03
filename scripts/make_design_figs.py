@@ -76,15 +76,15 @@ def fig_motivation(tr: pd.DataFrame, prof, out: Path, main_csv: Path = Path("res
     acc = g.groupby(level=0)[["recall", "precision", "privacy_violations"]].mean()
     acc["F1"] = 2 * acc.recall * acc.precision / (acc.recall + acc.precision)
     ax.add_patch(plt.Rectangle((0, 0.8), 1.0, 0.32, color="#d5f5e3", lw=0, zorder=0))
-    ax.text(0.04, 1.075, "target met, cheaper", fontsize=5.2, color="#2e8b57", va="center")
+    ax.text(0.55, 1.075, "target met, cheaper", fontsize=5.2, color="#2e8b57", va="center")
     lab = {"Cloud-All": ("Cloud-All\nviolates\nthe policy", 1.50, 0.68, "center"),
            "Static-Ref": ("Static-Ref", 1.06, 1.0, "left"),
            "Cert-2Tier": ("Cert-2Tier", 0.67, 0.70, "left"),
            "Conf-Cascade": ("Conf-Cascade", 0.04, 0.635, "left"),
            "Device-Only": ("Device-Only", 0.33, 0.47, "left"),
-           "SUPG-JT": ("SUPG-JT\n(asymptotic)", 0.03, 0.86, "left"),
-           "BARGAIN-JT": ("BARGAIN-JT", 0.60, 0.885, "left"),
-           "PTSQ": ("PTSQ", 0.47, 0.965, "left")}
+           "SUPG-JT": ("SUPG-JT\n(asymptotic)", 0.02, 0.83, "left"),
+           "BARGAIN-JT": ("BARGAIN-JT", 0.47, 0.875, "left"),
+           "PTSQ": ("PTSQ", 0.37, 1.025, "left")}
     for k, n in enumerate(["Cloud-All", "Static-Ref", "Cert-2Tier", "Conf-Cascade", "Device-Only", "SUPG-JT", "BARGAIN-JT", "PTSQ"]):
         if n not in rc.index:
             continue
@@ -99,7 +99,7 @@ def fig_motivation(tr: pd.DataFrame, prof, out: Path, main_csv: Path = Path("res
                 weight="bold" if big else "normal")
     ax.set_xlim(0, 1.8); ax.set_ylim(0.35, 1.12)
     ax.set_xlabel("cost / Static-Ref"); ax.set_ylabel(r"F1 vs. permitted ref.")
-    subcaption(ax, "(b) Methods (Q1-Q5)", y=-0.40)
+    subcaption(ax, "(b) Methods (Q1-Q8)", y=-0.40)
     fig.tight_layout(w_pad=0.8)
     save(fig, out / "fig_motivation.pdf")
 

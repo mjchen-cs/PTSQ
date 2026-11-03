@@ -71,6 +71,7 @@ def build_params(cfg: dict) -> ReplayParams:
                         test=g.get("test", "ratio"),
                         eta=g.get("eta", 0),
                         delta_certified_only=g.get("delta_certified_only", False),
+                        hybrid=float(g.get("hybrid", 0.0)),
                         weights=CostWeights(**w) if w else CostWeights())
 
 

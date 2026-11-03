@@ -26,7 +26,7 @@ MAIN_ORDER = ["Cloud-All", "Device-Only", "Static-Ref", "Conf-Cascade", "Cert-2T
               "BARGAIN-JT (relaxed)", "BARGAIN-JT", "PTSQ"]
 COMPLIANT = ["Static-Ref", "Conf-Cascade", "Cert-2Tier", "SUPG-JT", "BARGAIN-JT", "PTSQ"]
 QLABEL = {"yelp_delay": "Q1", "yelp_hygiene": "Q2", "yelp_staff_praise": "Q3", "amazon_defect": "Q4",
-          "amazon_gift": "Q5"}
+          "amazon_gift": "Q5", "yelp_overpriced": "Q6", "amazon_not_as_described": "Q7", "amazon_return": "Q8"}
 WATERMARK = None
 
 
@@ -172,7 +172,7 @@ def fig_guarantee(df: pd.DataFrame, path: Path):
     ax.axhline(100 * 0.05, color="k", lw=0.8, ls="--", label=r"$\delta=5\%$")
     ax.set_xticks(range(len(gammas)), [f"{g:g}" for g in gammas])
     ax.set_xlabel(r"target $\gamma$"); ax.set_ylabel("runs missing a target (%)")
-    ax.set_ylim(-1, 17)
+    ax.set_ylim(-1, 26)
     ax.grid(axis="x", visible=False)
     ax.legend(loc="upper left", fontsize=5.4, handlelength=1.0, title="worst query", title_fontsize=5.4,
               borderpad=0.25, labelspacing=0.2, handletextpad=0.4)
@@ -264,14 +264,15 @@ def fig_components(exp: Path, live_path: Path | None, path: Path):
     main = pd.read_csv(exp / "main.csv")
     ref = main[main.method == "Static-Ref"].groupby("qid")["cost"].mean()
     variants = [(0.0, "union bound, $k^+$=800"), (0.25, "propose-and-test (ratio)"),
-                (0.5, "+ conditional test"), (0.75, "+ learned risk"), (1.0, "+ learned prefilter")]
+                (0.5, "+ conditional test"), (0.75, "+ learned risk"), (0.875, "+ learned prefilter"),
+                (1.0, "+ threshold family")]
     vsty = [("#555555", "#e0e0e0", "ooo"), ("#2e8b57", "#c7e9c0", "xxx"), ("#1f5fa8", "#c6dbef", "\\\\\\\\"), ("#e67e22", "#fdd0a2", "..."),
-            ("#c0392b", "#f5b7b1", "////")]
+            ("#c0392b", "#f5b7b1", "////"), ("#6a3d9a", "#dadaeb", "---")]
     have_live = live_path is not None and Path(live_path).exists()
     fig, axes = plt.subplots(1, 4, figsize=(FULLW, 1.6), gridspec_kw={"width_ratios": [1, 1.25, 1, 1.05]})
     # (a) relative cost vs. target, per certification variant
     ax = axes[0]
-    gs = [0.75, 0.8, 0.9]
+    gs = [0.75, 0.8, 0.9, 0.95]
     w = 0.8 / len(variants)
     for k, ((x, lab), (c, f, ht)) in enumerate(zip(variants, vsty)):
         vals = []
@@ -314,11 +315,14 @@ def fig_components(exp: Path, live_path: Path | None, path: Path):
     ax = axes[3]
     if have_live:
         lv = pd.read_csv(live_path)
+        # replay under the configuration the live runs used (scripts/replay_live_config.py), else main
+        lr_path = exp / "live_replay.csv"
+        rep = pd.read_csv(lr_path) if lr_path.exists() else main
         rows, labs = [], []
         for q in [q for q in ("yelp_delay", "amazon_defect") if q in set(lv.qid)]:
             l_ = lv[lv.qid == q].iloc[0]
-            r_ = main[(main.method == "PTSQ") & (main.qid == q) & (main.seed == int(l_.seed))].iloc[0]
-            s_ = main[(main.method == "Static-Ref") & (main.qid == q) & (main.seed == int(l_.seed))].iloc[0]
+            r_ = rep[(rep.method == "PTSQ") & (rep.qid == q) & (rep.seed == int(l_.seed))].iloc[0]
+            s_ = rep[(rep.method == "Static-Ref") & (rep.qid == q) & (rep.seed == int(l_.seed))].iloc[0]
             rows += [(0, r_.t_calib, r_.t_stream), (l_.t_compile + LIVE_FEAT_S.get(q, 0), l_.t_calib, l_.t_stream),
                      (0, 0, s_.latency_s)]
             labs += ["rep.", f"live\n{_qlab(q)}", "S-R"]
@@ -335,7 +339,8 @@ def fig_components(exp: Path, live_path: Path | None, path: Path):
         ax.legend(fontsize=5.4, loc="upper right", handlelength=1.2, ncol=1)
     subcaption(ax, "(d) Live run vs. replay")
     h, l = axes[0].get_legend_handles_labels()
-    fig.legend(h, l, loc="upper center", ncol=5, bbox_to_anchor=(0.40, 1.07), frameon=False)
+    fig.legend(h, l, loc="upper center", ncol=6, bbox_to_anchor=(0.40, 1.07), frameon=False, fontsize=5.6,
+               handlelength=1.4, columnspacing=0.9)
     fig.tight_layout(w_pad=0.5)
     _wm(fig)
     save(fig, path)

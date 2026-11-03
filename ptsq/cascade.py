@@ -510,3 +510,53 @@ def cascade_can_pay_off(chain, unit_cost: dict, rule_keep_pop: np.ndarray | None
                         continue
                 kmin = min(kmin, float(rule_keep_pop[:, G].all(axis=1).mean()))
     return kmin * N + n_overhead < N
+
+
+# Fixed, data-independent candidate thresholds for the single-threshold certificate (scores are
+# probabilities and highly polarised, so the grid is dense near 0).
+THRESH_GRID = np.concatenate([[-INF], 10.0 ** np.linspace(-14, 0, 281)[:-1], np.linspace(0.05, 0.95, 19)])
+THRESH_GRID = np.unique(THRESH_GRID)
+
+
+def threshold_certify(level, chain, N: int, y: np.ndarray, proxy: np.ndarray, gamma_r: float, delta_s: float,
+                      unit_cost: dict[TierId, float]) -> StratumPlan | None:
+    """Single-threshold certificate (the family certified by SUPG/BARGAIN-style methods).
+
+    The strongest non-reference permitted tier scores every tuple; tuples with score < rho are
+    rejected and all others are decided by the reference, so precision is 1. On the WHOLE sample
+    (no propose/test split), rho runs over the fixed grid from the safest (-inf) upwards and is
+    tested by fixed-sequence testing with the direct recall bound UCB_delta(k_m(rho), k+) <= 1-gamma_r
+    (k+: sampled reference positives, k_m: those with score < rho); the largest rho before the first
+    failure is certified w.p. >= 1-delta. Returns the plan with its estimated cost, or None."""
+    if len(chain) < 2:
+        return None
+    y = np.asarray(y, dtype=bool)
+    A = np.nan_to_num(np.asarray(proxy, dtype=float), nan=0.5)
+    kp = int(y.sum())
+    if kp == 0:
+        return None
+    Ap = np.sort(A[y])
+    k_m = np.searchsorted(Ap, THRESH_GRID, side="left")          # positives with score < rho
+    ucb = cp_upper(k_m, kp, delta_s)
+    ok = ucb <= 1 - gamma_r
+    if not ok[0]:
+        return None
+    j = len(ok) if ok.all() else int(np.argmin(ok))               # first failure
+    rho = float(THRESH_GRID[j - 1])
+    frac_up = float((A >= rho).mean())
+    proxy_tier = chain[-2]
+    plan = StratumPlan(level=level, chain=list(chain))
+    if proxy_tier == TierId.DEVICE:                                # chain D -> R
+        plan.lo_d = float(np.nextafter(rho, -INF)) if np.isfinite(rho) else -INF
+        plan.hi_d = INF
+        cost = N * unit_cost[TierId.DEVICE] + N * frac_up * unit_cost[chain[-1]]
+    else:                                                          # chain D -> E -> C: device skipped
+        plan.skip_device = True
+        plan.lo_d, plan.hi_d = -INF, INF
+        plan.lo_m = float(np.nextafter(rho, -INF)) if np.isfinite(rho) else -INF
+        plan.hi_m = INF
+        cost = N * unit_cost[proxy_tier] + N * frac_up * unit_cost[chain[-1]]
+    plan.est_cost = float(cost)
+    plan.bounds = {"family": "threshold", "rho": rho, "k_pos": kp, "miss_upper": float(ucb[j - 1]),
+                   "alpha": delta_s, "n": len(y)}
+    return plan

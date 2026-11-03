@@ -17,12 +17,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .cascade import StratumInput, StratumPlan, calibrate_stratum, split_delta, choose_n_cal, cascade_can_pay_off, reference_is_bottleneck
+from .cascade import StratumInput, StratumPlan, calibrate_stratum, threshold_certify, split_delta, choose_n_cal, cascade_can_pay_off, reference_is_bottleneck
 from .config import Query
 from .llm.backends import Backend
 from .llm.prompts import filter_messages, render_record
 from .privacy import PrivacyPolicy, PrivacyShield, label_privacy, redact
-from .replay import Profiles, ReplayParams, unit_costs
+from .replay import Profiles, ReplayParams, calibration_cannot_pay_off, unit_costs
 from .simulator import ACTIONS, DEVICE_BATCH, FixedRouter
 from .symbolic import eval_rule, propose_rules
 from .types import PrivacyLevel, Request, ScoreResult, TierId
@@ -135,9 +135,15 @@ async def run_query(q: Query, tiers: dict[TierId, Backend], policy: PrivacyPolic
     plans, pruned = {}, np.zeros(N, dtype=bool)
     sample_scores: dict = {}                # stratum -> (sample indices, s_dev, s_mid) for policy selection
 
+    skip_all = calibration_cannot_pay_off(levels, chains, uc)
+
     async def calib(l):
         idx = np.flatnonzero(lv == int(l))
         chain = chains[l]
+        if skip_all:                             # no bottleneck reference anywhere: as Static-Ref
+            plans[l] = (StratumPlan(level=l, chain=chain, lo_d=0.5 - 1e-12, hi_d=0.5) if len(chain) == 1
+                        else StratumPlan(level=l, chain=chain, direct=True))
+            return
         n_cal = params.n_cal
         pilot_pos_keep = None
         if params.target_pos():                  # independent pilot -> calibration size
@@ -201,9 +207,18 @@ async def run_query(q: Query, tiers: dict[TierId, Backend], policy: PrivacyPolic
                            rule_keep_sample=rule_keep[samp] if rule_keep is not None else None,
                            rule_keep_pop=rule_keep[idx] if rule_keep is not None else None,
                            feat_sample=feat_s, feat_pop=feat_p)
-        plan = calibrate_stratum(inp, params.gamma_r, params.gamma_p, deltas[l], uc,
+        hyb = getattr(params, "hybrid", 0.0) > 0 and len(chain) > 1
+        plan = calibrate_stratum(inp, params.gamma_r, params.gamma_p,
+                                 deltas[l] * (1 - params.hybrid) if hyb else deltas[l], uc,
                                  max_rule_subset=params.max_rule_subset, cert=params.cert, split=params.split,
                                  bonferroni=params.bonferroni, prefilter=use_pf, test=params.test, eta=params.eta)
+        if hyb:   # single-threshold family on the whole sample at hybrid * delta (Sec. IV)
+            prox = s_mid if chain[-2] == TierId.EDGE else s_dev[samp]
+            tp = threshold_certify(l, chain, len(idx), inp.y_sample, prox, params.gamma_r,
+                                   deltas[l] * params.hybrid, uc)
+            cur = plan.est_cost if (plan.feasible or plan.direct) else float(len(idx) * uc[chain[-1]])
+            if tp is not None and tp.est_cost < min(cur, len(idx) * uc[chain[-1]]):
+                plan = tp
         plans[l] = plan
         risk_s = plan.risk_model(feat_s) if plan.risk_model is not None else None
         sample_scores[l] = (samp, s_dev[samp].copy(), s_mid, risk_s)
